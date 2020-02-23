@@ -1,7 +1,7 @@
 ---
 title: "BIOS 617 - Lecture 8"
 author: "Walter Dempsey"
-date: "2/10/2020"
+date: "2/12/2020"
 output:
   beamer_presentation: default
   ioslides_presentation: default
@@ -23,73 +23,78 @@ library(dslabs)
 library(tidyverse)
 library(ggrepel)
 library(matrixStats)
-```
 
-## JITT 1: Pew 2008 opinion poll 
-
-```{r pew, echo = FALSE}
 library(foreign)
-data <- read.dta("../pew_research_center_june_elect_wknd_data.dta")
-data <- data[!is.na(data$ideo ),]
-data <- data[!is.element(data$ideo, c("missing/not asked", "dk/refused")),]
-data$ideo_numeric = (data$ideo == 'very conservative')*2 + (data$ideo == 'conservative')*1 + (data$ideo == 'moderate')*0 + (data$ideo == 'liberal')*(-1) + (data$ideo == 'very liberal')*(-2)
-celldata = subset(data, sample=="cell")
-landlinedata = subset(data, sample=="landline")
-
-celldata %>%  ggplot(aes(ideo_numeric)) +
-  geom_bar(aes(y = (..count..)/sum(..count..)), data=subset(data,sample == 'cell'), fill = "blue", alpha = 0.2) +
-  geom_bar(aes(y = (..count..)/sum(..count..)), data=subset(data,sample == 'landline'), fill = "green", alpha = 0.2) +
-  xlab("Ideological buckets") +
-  ylab("Frequency") +
-  labs(color = "Ideology type") +
-  ggtitle("Ideology response from 3 Pew 2008 surveys")
+data = read.spss("data/june16pew.sav")
+clintonq10b = data$q10b[data$q10 == levels(data$q10)[1]]
+trumpq10b = data$q10b[data$q10 == levels(data$q10)[2]]
 ```
 
-## JITT:
+## We will use Pew data from June 2016
 
-```{r pew2, echo = FALSE, eval = TRUE}
-cellstrata1 = celldata$age>=18 & celldata$age <= 24
-cellstrata2 = celldata$age>=25 & celldata$age <= 44
-cellstrata3 = celldata$age >= 45
+* Total number of respondants: `r length(data$reg)`
+* __ASK ALL__: (REG) Which of these statements best describes you? 
+  + Are you ABSOLUTELY CERTAIN that you are registered to vote at your current address: `r as.numeric(table(data$reg)[1])`
+  + Are you PROBABLY registered, but there is a chance your registration has lapsed: `r as.numeric(table(data$reg)[2])`
+  + Are you NOT registered to vote at your current address: `r as.numeric(table(data$reg)[3])`
+  + [VOL. DO NOT READ] Don’t know/Refused: `r as.numeric(table(data$reg)[4])`
 
-llstrata1 = landlinedata$age>=18 & landlinedata$age < 24
-llstrata2 = landlinedata$age>=25 & landlinedata$age < 44
-llstrata3 = landlinedata$age >= 45
+## Pew 2016: Questions of interest
 
-P1 = 9.6/(1-0.258)
-P2 = 30.2/(1-0.258)
-P3 = (22+12.4)/(1-0.258)
+* __ASK ALL__: (Q.10) Suppose there were only two major candidates for president and you had to choose between
+[READ AND RANDOMIZE; RANDOMIZE TRUMP/CLINTON IN SAME ORDER AS Q.9/Q.9a] who would you vote for?
+  + Hillary Clinton, the Democrat: `r table(data$q10)[1]` (`r round(table(data$q10)[1]/sum(table(data$q10)),2)`)
+  + Donald Trump, the Republican: `r table(data$q10)[2]` (`r round(table(data$q10)[2]/sum(table(data$q10)),2)`)
+  + [VOL. DO NOT READ] Other candidate: `r table(data$q10)[3]`
+  + [VOL. DO NOT READ] Don’t know/Refused: `r table(data$q10)[4]`
+  
+## Pew 2016: Motivation to vote question
+* __ASK REGISTERED VOTERS WHO CHOOSE TRUMP OR CLINTON__: (Q.10b) Do you support [INSERT LAST NAME OF CANDIDATE CHOSEN IN Q.10] strongly or only moderately?
+  + Strongly
+    + Clinton: `r round(table(clintonq10b)[1],0)`
+    + Trump: `r round(table(trumpq10b)[1],0)`
+  + Only moderately
+    + Clinton: `r round(table(clintonq10b)[2],0)`
+    + Trump: `r round(table(trumpq10b)[2],0)`
+  + Don't know/Refused (VOL.)
+    + Clinton: `r round(table(clintonq10b)[3],0)`
+    + Trump: `r round(table(trumpq10b)[3],0)`
+    
+## ``Analysis phase''
 
-cellest = mean(celldata$ideo_numeric[cellstrata1])*P1/100 + mean(celldata$ideo_numeric[cellstrata2])*P2/100 + mean(celldata$ideo_numeric[cellstrata3])*P3/100
-llest = mean(landlinedata$ideo_numeric[llstrata1])*P1/100 + mean(landlinedata$ideo_numeric[llstrata2])*P2/100 + mean(landlinedata$ideo_numeric[llstrata3])*P3/100
+```{r pew2, eval = TRUE, echo = FALSE}
+clinton_weights = (clintonq10b == levels(clintonq10b)[1])*1.0 + (clintonq10b == levels(clintonq10b)[2])*0.6
+trump_weights1 = (trumpq10b == levels(trumpq10b)[1])*1.0 + (trumpq10b == levels(trumpq10b)[2])*0.6
+trump_weights2 = (trumpq10b == levels(trumpq10b)[1])*1.0 + (trumpq10b == levels(trumpq10b)[2])*1.0
+clinton_weights[is.na(clinton_weights)] = 0.0
+trump_weights1[is.na(trump_weights1)] = 0.0
+trump_weights2[is.na(trump_weights2)] = 0.0
 ```
 
-* The mean age in all the data is `r round(mean(data$age),2)`, in just the cell surveys is `r round(mean(celldata$age),2)`, and in just the landlines is `r round(mean(data$age[data$sample=="landline"]),2)`.
-* Split cell data into strata of 18-24 ($P_1 = `r round(P1,3)`$\%), 25-44 ($P_2 = `r round(P2,3)`$\%), and 45+ ($P_3 = `r round(P3,3)`$\%)
-* The mean ideology is `r round(mean(celldata$ideo_numeric[cellstrata1]),3)`, `r round(mean(celldata$ideo_numeric[cellstrata2]),3)`, and `r round(mean(celldata$ideo_numeric[cellstrata3]),3)` respectively in __cell__ data.
-* The mean ideology is `r round(mean(landlinedata$ideo_numeric[llstrata1]),3)`, `r round(mean(landlinedata$ideo_numeric[llstrata2]),3)` and `r round(mean(landlinedata$ideo_numeric[llstrata3]),3)` respectively in __landline__ data.
-* PS estimates are `r round(cellest,2)` for cell only data and `r round(llest,2)` for landline only data
-* Overall estimate was `r round(mean(data$ideo_numeric),2)`
+* Suppose only registered individuals vote
+* $P(\text{Vote} \mid \text{Strongly}) = 1.0$ and $P(\text{Vote} \mid \text{Only Moderately}) = 1.0$
+$$
+\frac{\sum_{i=1}^n y_i}{n} = \frac{`r length(clinton_weights)`}{`r length(clinton_weights)` + `r length(trump_weights1)`} = `r round(length(clinton_weights)/(length(clinton_weights)+length(trump_weights1)),4)`
+$$
+* $P(\text{Vote} \mid \text{Strongly}) = 1.0$ and $P(\text{Vote} \mid \text{Only Moderately}) = 0.6$
+* Then
+$$
+\frac{\sum_{i=1}^n w_i \times y_i}{\sum_{i=1}^n w_i} = \frac{`r sum(clinton_weights)`}{`r sum(clinton_weights)` + `r sum(trump_weights1)`} = `r round(sum(clinton_weights)/(sum(clinton_weights)+sum(trump_weights1)),4)`
+$$
+* What if the ``Only Moderate'' for Trump has support at 100\%?
+$$
+\frac{\sum_{i=1}^n w_i \times y_i}{\sum_{i=1}^n w_i} = \frac{`r sum(clinton_weights)`}{`r sum(clinton_weights)` + `r sum(trump_weights2)`} = `r round(sum(clinton_weights)/(sum(clinton_weights)+sum(trump_weights2)),4)`
+$$
 
 
-## NEW MATERIAL: Multi-stage sampling
-
-* In many settings, it might be expensive/highly inefficient to take all elements in a sampled cluster.
-* US area probability sample: a sample of counties (avg $\approx$ 40,000 households) or US Census blocks (avg. $\approx$ 1600 households) might be taken as the first stage of sampling.
-* Sampling of clinics: review of all patients clinical records for a sampled clinic might be prohibitively expensive.
-* Recall $deff$ for clustered samples: $1+(M-1)\rho$
-  + As M increases, sample becomes less efficient for a fixed $\rho > 0$.
-* Take sample of elements in a sampled cluster. 
-* First stage of sample (cluster) is Primary Sampling Unit (PSU).
-
-## Example
+## Mutli-stage sampling
 
 ```{r, out.width = "250px", fig.align='center'}
 library(knitr)
 include_graphics("./figs/l8_fig1.png") # place holder
 ```
 
-## Example
+## Multi-stage sampling
 
 ```{r, out.width = "250px", fig.align='center'}
 library(knitr)
@@ -116,77 +121,6 @@ $$
 V(\bar y_c) = E \left[ V(\bar y_c \mid i \in s ) \right] + V \left( E[ \bar y_c \mid i \in s ] \right)
 $$
 where treat chosen clusters as strata since we are fixing the clusters through conditioning.
-
-## Estimating sampling variance of mean from two-stage cluster sample
-
-* Need to estimate $S_1^2$ and $S_2^2$
-
-$$
-s_2^2 = \frac{1}{k(m-1)} \sum_{i=1}^k \sum_{j=1}^m (y_{ij} - \bar y_i)^2
-$$
-and 
-$$
-\begin{aligned}
-E [ s_2^2 ] &= E[ E [ s_2^2 \mid i \in s]] =
-E \left[ \frac{1}{k} \sum_{i=1}^k E(s_i^2) \right] \\
-&= E \left[ \frac{1}{k} \sum_{i=1}^k S_i^2 \right] = \frac{1}{K} \sum_{i=1}^K S_i^2 = S_2^2
-\end{aligned}
-$$
-
-## ISSUE: Biased estimator
-
-* $s_1^2 = \frac{1}{k-1} \sum_{i=1}^k (\bar y_i - \bar y)^2$ is a biased estimator of $S_1^2$ when second stage sampling is performed!
-
-$$
-\begin{aligned}
-E [ s_1^2 ] = S_1^2 + \left( 1-\frac{m}{M} \right) \frac{S_2^2}{m}
-\end{aligned}
-$$
-
-## Proof of bias
-
-$$
-\begin{aligned}
-E [ \sum_{i=1}^l (\bar y_i - \bar y )^2 ] &= E \left[ E \left[ \sum_{i=1}^k (\bar y_i - \bar y)^2 \mid i \in s \right] \right] \\
-&= E \left[ E \left[ \sum_{i=1}^k \bar y_i^2 \mid i \in s \right] \right] - k E \left[ E \left[ \bar y^2 \mid i \in s \right] \right] \\
-\end{aligned}
-$$
-
-$$
-\begin{aligned}
-E \left[ E \left[ \sum_{i=1}^k \bar y_i^2 \mid i \in s \right] \right] 
-&= E \left[ E \left[ \sum_{i=1}^k (\bar y_i - \bar Y_i + \bar Y_i)^2 \mid i \in s \right] \right] \\
-&= E \left[ \sum_{i=1}^k E \left[ (\bar y_i - \bar Y_i)^2 \mid i \in s \right] + \sum_{i=1}^k \bar Y_i^2 \right] \\
-&= E ( \sum_{i=1}^k V (\bar y_i))  + \frac{k}{K} \sum_{i=1}^K \bar Y_i^2 \\
-\end{aligned}
-$$
-
-## Proof continues
-
-$$
-\begin{aligned}
-&E ( \sum_{i=1}^k V (\bar y_i) )  + \frac{k}{K} \sum_{i=1}^K \bar Y_i^2 \\
-=& \sum_{i=1}^k \left( 1 - \frac{m}{M} \right) \frac{E(S_i^2)}{m}  + \frac{k}{K} \sum_{i=1}^K \bar Y_i^2 \\
-=& \left( 1 - \frac{m}{M} \right) \frac{k S_2^2}{m}  + \frac{k}{K} \sum_{i=1}^K \bar Y_i^2 \\
-\end{aligned}
-$$
-
-## Proof of bias
-
-$$
-\begin{aligned}
-E[ \bar y^2 ] &= V(\bar y^2) + E[\bar y]^2 \\
-&= \left( 1 - \frac{k}{K} \right) \frac{S_1^2)}{k} + \left( 1 - \frac{m}{M} \right) \frac{S_2^2}{n} + \bar Y^2
-\end{aligned}
-$$
-Combining these two terms we have 
-$$
-\begin{aligned}
-& k \left( 1 - \frac{m}{M} \right) \frac{S_2^2}{m}  + \frac{k}{K} \sum_{i=1}^K \bar Y_i^2 \\
-&-k \times \left( \left( 1 - \frac{k}{K} \right) \frac{S_1^2)}{k} + \left( 1 - \frac{m}{M} \right) \frac{S_2^2}{n} + \bar Y^2 \right) \\
-&= (k-1) \left[ (1-m/M) S_2^2/m + S_1^2\right]
-\end{aligned}
-$$
 
 ## Unbiased estimators
 
@@ -438,8 +372,134 @@ $$
 aggregated into the highest level (“ultimate”) cluster and treated as if they
 came from a one-stage design with a census in each cluster.
 
+## Optimal cluster size (2-stage sampling)
+* Let $c_1$ be the average cost to recruit a cluster into a sample and $c_2$ be the average cost to recruit and conduct an interview at a sampled unit
+  + For a face-to-face area probability sample, $c_1$ might include the costs of developing and maintaining an interviewer or interviewer team in a sampled PSU, while $c_2$ includes the costs of traveling to sampled households, recruiting respondents, and conducting interviews.
+  + For a school survey, $c_1$ might include the costs of recruiting a sampled school, obtaining institutional review, etc., while $c_2$ includes the per-survey costs of administering and processing the surveys
+  
+## Optimal cluster size
+
+Not including any overall fixed costs $C_0$, the total cost of conducting a two-stage survey will be:
+$$
+C = k c_1 + n c_2 = n (c_2 + c_1 \cdot k / n) = n (c_2 + c_1 / m)
+$$
+We will focus on an optimization of the product of the variance of the mean and the cost:
+$$
+\Psi = V(\bar y_c) \cdot C
+$$
+
+## First attempt
+
+Consider the approximation $V(\bar y_c) \approx \frac{S^2}{n} \left[ 1+ (m-1) \rho \right]$ then
+$$
+\Psi = \frac{S^2}{n} \left[ 1+ (m-1) \rho \right] \cdot \left( n (c_1 + c_2/m \right)
+$$
+Then
+$$
+\frac{\partial \Psi}{\partial m} = S^2 \left[ c_2 \rho - \frac{c_1 (1-\rho)}{m^2} \right] = 0
+$$
+so
+$$
+m = \sqrt{\frac{c_1 (1-\rho)}{c_2 \rho}}
+$$
+
+## Exact result
+
+$$
+\begin{aligned}
+V(\bar y_c) &= \left( 1 - \frac{k}{K} \right) \frac{S_1^2}{k} + \left( 1 - \frac{m}{M} \right) \frac{S_2^2}{n} \\
+&= \frac{1}{k} \underbrace{\left( S_1^2 - \frac{S_2^2}{M} \right)}_{=S_u^2} + \frac{S_2^2}{n} - \frac{S_1^2}{K}
+\end{aligned}
+$$
+
+## Keep going
+
+Ignoring the last term since it doesn't involve manipulable variables of sample size, we have
+$$
+\begin{aligned}
+\Psi &= \left[\frac{S_u^2}{k}  + \frac{S_2^2}{n}\right] \left[ n (c_2 + c_1/m) \right] \\
+&= \left[ m S_u^2  + S_2^2 \right] \left[ (c_2 + c_1/m) \right] \\
+&= m S_u^2 c_2 + S_2^2 c_2 + c_1 S_u^2 + c_1 S_2^2/m
+\end{aligned}
+$$
+Therefore
+$$
+\frac{\partial \Psi}{\partial m} = S_u^2 c_2 - c_1 S_2^2/m^2 = 0
+$$
+implying
+$$
+m = \sqrt{\frac{c_1 S_2^2}{c_2 S_u^2}}
+$$
+
+## What about $k$?
+
+* Once $m$ is determined, $k$ is obtained from the cost function:
+$$
+C = n (c_2 + c_1/m) = km (c_2 + c_1 / m)
+$$
+so that
+$$
+k = \frac{C}{m c_2+c_1}
+$$
+Note that
+* Optimal value of $m$ depends only on the relative per-cluster and per-unit costs and the between-cluster vs. within-cluster variance (i.e., intraclass correlation).
+* Once $m$ is determined, the number of clusters $k$ to be sampled is simply a function of the number of PSUs to be selected.
+
+## 3-stage sampling
+
+Now our cost function is 
+$$
+C = \underbrace{k}_{=n_1}c_1 + \underbrace{km}_{=n_2} c_2 + \underbrace{kmr}_{=n_3} c_3 = \sum_i c_i n_i
+$$
+where $c_1$ and $c_2$ are the costs associated with obtaining and organizing data collection at the 1st and 2nd stage clusters respectively, and $c_3$ is now the average cost to recruit and conduct an interview at a sampled unit.
+
+## 3-stage sampling
+
+Our 3-stage variance is given by
+$$
+\begin{aligned}
+V(\bar y_c) &= \left( 1 - \frac{k}{K} \right) \frac{S_1^2}{k} + \left( 1 - \frac{m}{M} \right) \frac{S_2^2}{km} + \left( 1 - \frac{r}{R} \right) \frac{S_3^2}{n} \\
+&= \frac{S_1^2}{n_1} + \frac{S_2^2}{n_2} + \frac{S_3^2}{n_3} - \frac{S_1^2}{K} - \frac{S_2^2}{n_1 M} - \frac{S_3^2}{n_2 R} \\
+&= \frac{1}{n_1} \left( S_1^2 - \frac{S_2^2}{M} \right) + \frac{1}{n_2} \left( S_2^2 - \frac{S_3^2}{R} \right) + \frac{S_3^2}{n_3} - \frac{S_1^2}{K} \\
+&= \sum_i V_i / n_i - V_0
+\end{aligned}
+$$
+where $V_0 = \frac{S_1^2}{K}$, $V_1 = S_1^2-\frac{S_2^2}{M}$, $V_2 = S_2^2 - \frac{S_3^2}{R}$, and $V_3 = S_3^2$.
+
+## 3-stage sampling
+
+Ignoring $V_0$, the optimizing function is given by
+$$
+\Psi = \left[ \sum_i V_i / n_i \right] \cdot \left [ \sum_i c_i n \right]
+$$
+
+* Could obtain derivatives with respect to $n_i$, but can also ``cheat'' by noting that for the Cauchy-Schwartz inequality 
+$$
+\sum_i a_i^2 \sum_i b_i^2 \geq \left( \sum_i a_i b_i \right)^2
+$$
+equality holds when $a_i \propto b_i$, or $a_i / b_i$ is a constant.
+* Thus $\Psi$ is minimized when 
+$$
+\frac{\sqrt{V_i/n_i}}{\sqrt{c_i n_i}} = \frac{1}{n_i} \sqrt{\frac{V_i}{c_i}}
+$$
+or $n_i \propto \sqrt{V_i / c_i}$.
+
+## 3-stage sampling
+
+$$
+\frac{n_3}{n_2} = r = \sqrt{ \frac{V_3}{V_2} \times \frac{c_2}{c_3}} = \sqrt{ \frac{S_3^2}{(S_2^2 - S_3^2/R)} \times \frac{c_2}{c_3}}
+$$
+$$
+\frac{n_2}{n_1} = m = \sqrt{ \frac{V_2}{V_1} \times \frac{c_1}{c_2}} = \sqrt{ \frac{S_2^2-S_3^2/R}{(S_1^2 - S_2^2/M)} \times \frac{c_1}{c_2}}
+$$
+With $m$ and $r$ determined, we can then find $k$:
+$$
+\begin{aligned}
+C &= k c_1 + k m c_2 + k m r c_3\\
+\Rightarrow k &= \frac{C}{c_1 + m c_2 + mr c_3}
+\end{aligned}
+$$
+
 ## JITT
 
-* Find more recent Pew poll data (or make some assumptions in the Pew 2008 example)
-* What if we were more interested in the result of the election than the current poll?
-* How would you convert the current poll results into an estimate of the election outcome? 
+* Diary entries: review NH surveys compared to actual outcome.  

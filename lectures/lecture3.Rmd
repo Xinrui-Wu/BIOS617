@@ -114,7 +114,7 @@ E[y_i y_j ] &= E \left[ y_i E [ y_j \, | \, y_i] \right] \\
 $$
 So the $\text{Cov} (y_i, y_j) = \bar Y^2 - \frac{S^2}{N} - \bar Y^2 = -\frac{S^2}{N}$
 
-## Put is all together
+## Put it all together
 
 $$ \small
 \begin{aligned}
@@ -203,7 +203,7 @@ $$
 
 - Variance estimate $v(\bar y_h) = (1-f_h) s_h^2 / n_h$ is unbiased for $V(\bar y_h)$, so
 $$ \small
-v(\bar y_{st}) = \sum_h P_h \left(1-\frac{n_h}{N_h} \right) \frac{s_h^2}{n_h}
+v(\bar y_{st}) = \sum_h P_h^2 \left(1-\frac{n_h}{N_h} \right) \frac{s_h^2}{n_h}
 $$
 is an unbiased for $V(\bar y_{st})$.
 
@@ -228,7 +228,7 @@ $$
 $$
 \begin{aligned}
 \bar y_{st} &= \sum_h P_h \bar y_h = \sum_h \frac{N_h}{N} \left[ \frac{1}{n_h} \sum_{i} y_{hi} \right] \\
-&= \sum_h \frac{n_h}{n} \left[ \frac{1}{n_h} \sum_i y_{hi} \right] = \frac{n_h}{n} \sum_h \sum_i y_{hi} = \bar y
+&= \sum_h \frac{n_h}{n} \left[ \frac{1}{n_h} \sum_i y_{hi} \right] = \frac{1}{n} \sum_h \sum_i y_{hi} = \bar y
 \end{aligned}
 $$
 
@@ -251,11 +251,11 @@ For large $N_h$, we can show that the deff of proportionate stratified sample is
 - $V(\bar y) = (1-f) S^2 / n$
 - $S^2 \dot = \sum_h P_h [ S_h^2 + (\bar Y_h - \bar Y)^2 ]$
 $$ \small
-\text{deff} = \frac{V(\bar y_{st})}{V(\bar y)} \dot = \frac{\sum_h P_h S_h^2}{\sum_h P_h S_h^2 + \sum_h P_h (\bar Y_h - \bar Y)^2 ]}
+\text{deff} = \frac{V(\bar y_{st})}{V(\bar y)} \dot = \frac{\sum_h P_h S_h^2}{\sum_h P_h S_h^2 + \sum_h P_h (\bar Y_h - \bar Y)^2}
 $$
 - Thus
 $$
-\text{deff} = \left( 1 + \frac{\sum_h P_h (\bar Y_h - \bar Y)^2 ]}{\sum_h P_h S_h^2}\right)^{-1} \leq 1
+\text{deff} = \left( 1 + \frac{\sum_h P_h (\bar Y_h - \bar Y)^2}{\sum_h P_h S_h^2}\right)^{-1} \leq 1
 $$
 - What factors increase the efficiency of proportionate allocation?
 
